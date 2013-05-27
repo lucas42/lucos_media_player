@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+<!DOCTYPE HTML> 
+<html xmlns="http://www.w3.org/1999/xhtml" style="background: grey; padding: 0; height: 100%;"> 
+	<head> 
+		<title>LucOs Media Player</title>
+		<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<script type='text/javascript' src='http://l42.eu/script'></script>
+		<script type="text/javascript">
+			lucos.waitFor('ready', function _playerDOMReady() {
+				lucos.detect.mediaElement(function _playMedia(type, player) {
+					function modifyparams(params) {
+						if (player.src && player.currentTime > 1) {						       
+							params.update_url = player.getAttribute("src");  // Use .getAttribute rather than .src because .src is url encoded
+							params.update_time = player.currentTime;
+							params.update_timeset = Math.round(lucos.getTime());												       
+						}
+						return params;
+					}
+					function ajax(url, params) {
+						if (url == "update" && !player.src) return false;															
+						url = "/" + url;								    
+						return lucos.net.post(url, modifyparams(params));
+					}	    
+					var data = {}, lastskip = {}, background;
+					if (!type) {
+						alert("Sorry, there was a problem playing audio on this device.");
+						history.back();
+						return;
+					}
+					document.body.appendChild(player);
+					if (type == "audio") {
+						background = document.createElement("div");
+						background.style.width = '100%';
+						player.parentNode.insertBefore(background, player);
+					} else {
+						background = player;
+					}
+					background.setAttribute("style", "\nmargin: 0 auto;\ndisplay: block;\npadding: 0;\nheight: 100%;\nbackground: black;\nfont-size: 5em");
+					player.addEventListener('timeupdate', function () {
+						if (!data.now || !player || !data.now.timeSet) return;
+						var cur = player.currentTime;
+						var timeSinceSet = (lucos.getTime() - data.now.timeSet)/1000;
+						
+						/* // If it's been more than 45 secs since the time has been updated, assume that there are no active clients.
+						if (timeSinceSet > 45) {
+							if (cur < data.now.currentTime) player.currentTime = data.now.currentTime;
+							return;
+						}*/
+						var syncedTime = timeSinceSet + data.now.currentTime;
+						var outofsync = syncedTime - cur;
+						// If the server has sent an update, match time.
+						
+						if (data.now.timeSet != lastskip.timeSet) {
+							player.currentTime = syncedTime;
+							//console.log('set', syncedTime, timeSinceSet, data.now.currentTime, player.currentTime);
+							lastskip.skip = lucos.getTime();
+							lastskip.outofsync = outofsync;
+							lastskip.timeSet = data.now.timeSet;
+							
+						// Otherwise only update if it's percievable (greater than 40ms)
+						} else if (Math.abs(outofsync) > 0.4) {
+							
+							// Only skip a maximum of once every 2 secs
+							//if (lastskip.skip > (lucos.getTime() - 2*1000)) return;
+							
+							// If still out of sync following last skip, try skipping a bit extra this time
+							/*if (lastskip.skip > (lucos.getTime() - 2*1000) && lastskip.outofsync > 0.04) {
+								var extraskip = (lastskip.outofsync < outofsync)?lastskip.outofsync : outofsync;
+								syncedTime += extraskip;
+								//outofsync += syncedTime;
+							}*/
+							player.currentTime = syncedTime;
+							lastskip.skip = lucos.getTime();
+							lastskip.outofsync = outofsync;
+							//console.log('resync', outofsync, syncedTime, player.currentTime);
+						} else if (outofsync < -0.1) {
+							//console.log('sleep for', outofsync * -1000);
+							//player.pause();
+							/*if (lastskip.skip > (lucos.getTime() - 2*1000)) {
+								var extraskip = (lastskip.outofsync < outofsync)?lastskip.outofsync : outofsync;
+								outofsync += extraskip;
+								//outofsync += syncedTime;
+							}*/
+							//setTimeout(function() {player.play()}, outofsync * -1000);
+						}
+						//background.css('color', 'yellow').html(lucos.getTime()+"<br/>"+player.currentTime+"<br/>"+syncedTime+"<br/>"+outofsync);
+						//if (data.now.currentTime > player.currentTime) player.currentTime = data.now.currentTime;
+					}, false);
+					function trackEnded(event) {
+						console.log('ended', 'src:'+player.src, 'attr:'+player.getAttribute('src'));
+						ajax('done', { track: decodeURIComponent(player.src.replace('/ceol', '/ceol%20srl')), status: event.type });
+					}
+					player.addEventListener("ended", trackEnded, false);
+					player.addEventListener("error", trackEnded, false);
+					window.addEventListener("unload", function _unload() {
+						player.pause();
+						ajax("update", {async: false});
+					}, false);
+					player.addEventListener("playing", function _playing() {
+						player.style.width = '';
+						if (player.offsetWidth == 0 || type == "audio") {
+							background.style.background = 'url('+data.now.metadata.img+')'
+							 background.style.backgroundSize = 'cover';
+							 background.style.backgroundPosition = 'center';
+						} else {
+							background.style.background = 'black';
+						}
+						player.style.width = '100%';
+					}, true);
+					lucos.net.startpoll('poll', function _playerPollResponse(newdata) {
+						data = newdata;
+						
+						// HACK: Really bad hack to handle change in some urls on NAS
+						data.now.url = data.now.url.replace("ceol srl", "ceol");
+						
+						if (player.getAttribute("src") != data.now.url) player.src = data.now.url;
+						//console.log('playing', data.isPlaying, player.paused);
+						if (data.isPlaying) {
+							if (player.paused) player.play();
+						} else {
+							player.pause();
+						}
+						player.volume = data.volume;
+						if (data.open) {
+							var params = '';
+							if (data.open.type == "edit") params = 'width=650, height=400, location=no, menubar=no, resizeable=yes, scrollbars=yes, status=no, titlebar=no, toolbar=no';
+							else params = 'location=yes';
+							window.open(data.open.url, '', params);
+						}
+					}, modifyparams);
+				});
+				
+				(function _addTouchHandlers() {
+					document.body.addEventListener('touchmove', function(e){ e.preventDefault(); }, false);
+				})();
+			});
+		</script>
+	<body style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; margin: 0; padding: 0; overflow: hidden;" onload=''>
+	</body>
+	</html>
