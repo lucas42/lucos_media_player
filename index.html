@@ -7,6 +7,8 @@
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<script type='text/javascript' src='http://l42.eu/script'></script>
 		<script type="text/javascript">
+
+			var currentTrack;
 			lucos.waitFor('ready', function _playerDOMReady() {
 				lucos.detect.mediaElement(function _playMedia(type, player) {
 					function modifyparams(params) {
@@ -37,7 +39,7 @@
 						background = player;
 					}
 					background.setAttribute("style", "\nmargin: 0 auto;\ndisplay: block;\npadding: 0;\nheight: 100%;\nbackground: black;\nfont-size: 5em");
-					player.addEventListener('timeupdate', function () {
+					player.addEventListener('canplaythrough', function () {
 						if (!data.now || !player || !data.now.timeSet) return;
 						var cur = player.currentTime;
 						var timeSinceSet = (lucos.getTime() - data.now.timeSet)/1000;
@@ -88,8 +90,14 @@
 						//if (data.now.currentTime > player.currentTime) player.currentTime = data.now.currentTime;
 					}, false);
 					function trackEnded(event) {
-						console.log('ended', 'src:'+player.src, 'attr:'+player.getAttribute('src'));
-						ajax('done', { track: decodeURIComponent(player.src.replace('/ceol', '/ceol%20srl')), status: event.type });
+						skipTrack(event.type);
+					}
+					function skipTrack(status) {
+						if (!currentTrack) return;
+						console.log('done', 'src:'+player.src, 'cur:'+currentTrack, status);
+						ajax('done', { track: currentTrack.replace('/ceol', '/ceol srl'), status: status });
+						window.URL.revokeObjectURL(currentTrack);
+						currentTrack = null;
 					}
 					player.addEventListener("ended", trackEnded, false);
 					player.addEventListener("error", trackEnded, false);
@@ -114,12 +122,20 @@
 						// HACK: Really bad hack to handle change in some urls on NAS
 						data.now.url = data.now.url.replace("ceol srl", "ceol");
 						
-						if (player.getAttribute("src") != data.now.url) player.src = data.now.url;
-						//console.log('playing', data.isPlaying, player.paused);
-						if (data.isPlaying) {
-							if (player.paused) player.play();
-						} else {
-							player.pause();
+						if (currentTrack != data.now.url) {
+							currentTrack = data.now.url;
+							lucos.net.getblob(data.now.url, function _downloaded(blob) {
+								var file = window.URL.createObjectURL(blob);
+								player.src = file;
+								if (data.isPlaying) {
+									if (player.paused) player.play();
+								} else {
+									player.pause();
+								}
+							}, function _downloadError() {
+								skipTrack("Can't load");
+								console.log('error', arguments);
+							})
 						}
 						player.volume = data.volume;
 						if (data.open) {
