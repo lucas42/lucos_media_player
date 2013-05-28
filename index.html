@@ -136,6 +136,12 @@
 								skipTrack("Can't load");
 								console.log('error', arguments);
 							})
+						} else {
+							if (data.isPlaying) {
+								if (player.paused) player.play();
+							} else {
+								player.pause();
+							}
 						}
 						player.volume = data.volume;
 						if (data.open) {
