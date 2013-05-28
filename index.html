@@ -123,6 +123,7 @@
 						data.now.url = data.now.url.replace("ceol srl", "ceol");
 						
 						if (currentTrack != data.now.url) {
+							player.pause();
 							currentTrack = data.now.url;
 							lucos.net.getblob(data.now.url, function _downloaded(blob) {
 								var file = window.URL.createObjectURL(blob);
