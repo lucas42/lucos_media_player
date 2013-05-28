@@ -96,7 +96,7 @@
 						if (!currentTrack) return;
 						console.log('done', 'src:'+player.src, 'cur:'+currentTrack, status);
 						ajax('done', { track: currentTrack.replace('/ceol', '/ceol srl'), status: status });
-						window.URL.revokeObjectURL(currentTrack);
+						window.URL.revokeObjectURL(player.src);
 						currentTrack = null;
 					}
 					player.addEventListener("ended", trackEnded, false);
