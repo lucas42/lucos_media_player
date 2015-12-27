@@ -98,7 +98,7 @@
 					function skipTrack(status) {
 						if (!currentTrack) return;
 						console.log('done', 'src:'+player.src, 'cur:'+currentTrack, status);
-						ajax('done', { track: currentTrack.replace('/ceol', '/ceol srl'), status: status });
+						ajax('done', { track: currentTrack.replace('import/black/ceol srl', 'ceol srl'), status: status });
 						window.URL.revokeObjectURL(player.src);
 						currentTrack = null;
 					}
@@ -123,7 +123,7 @@
 						data = newdata;
 						
 						// HACK: Really bad hack to handle change in some urls on NAS
-						data.now.url = data.now.url.replace("ceol srl", "ceol");
+						data.now.url = data.now.url.replace("ceol srl", "import/black/ceol srl");
 						
 						if (currentTrack != data.now.url) {
 							player.pause();
